@@ -1,5 +1,7 @@
 package com.rollback.api_alunos.service;
 
+import com.rollback.api_alunos.exception.AlunoNaoEncontradoException;
+import com.rollback.api_alunos.exception.DadosInvalidosException;
 import com.rollback.api_alunos.model.Aluno;
 import com.rollback.api_alunos.model.enums.StatusAluno;
 import com.rollback.api_alunos.repository.AlunoRepository;
@@ -18,9 +20,10 @@ public class AlunoService {
         return alunoRepository.findAll();
     }
 
-    public Aluno buscarPorId(Long id) {
+    // throws declara que este método pode propagar uma exceção verificada
+    public Aluno buscarPorId(Long id) throws AlunoNaoEncontradoException {
         return alunoRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Aluno não encontrado: " + id));
+                .orElseThrow(() -> new AlunoNaoEncontradoException(id));
     }
 
     public List<Aluno> listarPorStatus(StatusAluno status) {
@@ -28,10 +31,22 @@ public class AlunoService {
     }
 
     public Aluno salvar(Aluno aluno) {
+        // throw manual ao detectar condição inválida nos dados de entrada
+        if (aluno.getNome() == null || aluno.getNome().isBlank()) {
+            throw new DadosInvalidosException("nome");
+        }
+        if (aluno.getSemestreIngresso() == null || aluno.getSemestreIngresso().isBlank()) {
+            throw new DadosInvalidosException("semestreIngresso");
+        }
+        if (aluno.getStatus() == null) {
+            throw new DadosInvalidosException("status");
+        }
+
         return alunoRepository.save(aluno);
     }
 
-    public void deletar(Long id) {
+    public void deletar(Long id) throws AlunoNaoEncontradoException {
+        buscarPorId(id); // garante que o aluno existe antes de deletar
         alunoRepository.deleteById(id);
     }
 }
