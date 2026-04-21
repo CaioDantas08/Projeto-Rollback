@@ -1,5 +1,6 @@
 package com.rollback.api_alunos.controller;
 
+import com.rollback.api_alunos.exception.AlunoNaoEncontradoException;
 import com.rollback.api_alunos.model.Aluno;
 import com.rollback.api_alunos.model.enums.StatusAluno;
 import com.rollback.api_alunos.service.AlunoService;
@@ -23,7 +24,12 @@ public class AlunoController {
 
     @GetMapping("/{id}")
     public ResponseEntity<Aluno> buscarPorId(@PathVariable Long id) {
-        return ResponseEntity.ok(alunoService.buscarPorId(id));
+        // try/catch trata a exceção no ponto onde ela pode ocorrer
+        try {
+            return ResponseEntity.ok(alunoService.buscarPorId(id));
+        } catch (AlunoNaoEncontradoException e) {
+            return ResponseEntity.notFound().build();
+        }
     }
 
     @GetMapping("/status/{status}")
@@ -38,7 +44,12 @@ public class AlunoController {
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deletar(@PathVariable Long id) {
-        alunoService.deletar(id);
-        return ResponseEntity.noContent().build();
+        // try/catch trata a exceção no ponto onde ela pode ocorrer
+        try {
+            alunoService.deletar(id);
+            return ResponseEntity.noContent().build();
+        } catch (AlunoNaoEncontradoException e) {
+            return ResponseEntity.notFound().build();
+        }
     }
 }
