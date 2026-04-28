@@ -30,23 +30,32 @@ public class AlunoService {
         return alunoRepository.findByStatus(status);
     }
 
+     
     public Aluno salvar(Aluno aluno) {
-        // throw manual ao detectar condição inválida nos dados de entrada
-        if (aluno.getNome() == null || aluno.getNome().isBlank()) {
-            throw new DadosInvalidosException("nome");
-        }
-        if (aluno.getSemestreIngresso() == null || aluno.getSemestreIngresso().isBlank()) {
-            throw new DadosInvalidosException("semestreIngresso");
-        }
-        if (aluno.getStatus() == null) {
-            throw new DadosInvalidosException("status");
-        }
-
+        // cada entrada agora mapeia o nome do campo para uma lambda que verifica se é inválido
+        Map<String, Supplier<Boolean>> validacoes = new LinkedHashMap<>();
+        validacoes.put("nome",             () -> aluno.getNome() == null || aluno.getNome().isBlank());
+        validacoes.put("semestreIngresso", () -> aluno.getSemestreIngresso() == null || aluno.getSemestreIngresso().isBlank());
+        validacoes.put("status",           () -> aluno.getStatus() == null);
+ 
+        // lambda no forEach: percorre cada validação e lança exceção se inválida
+        validacoes.forEach((campo, invalido) -> {
+            if (invalido.get()) throw new DadosInvalidosException(campo);
+        });
+ 
         return alunoRepository.save(aluno);
     }
-
+ 
     public void deletar(Long id) throws AlunoNaoEncontradoException {
         buscarPorId(id); // garante que o aluno existe antes de deletar
         alunoRepository.deleteById(id);
     }
+ 
+    // retorna alunos com risco >= 0.5 usando lambda no filter
+    public List<Aluno> listarAlunosEmRisco() {
+        return alunoRepository.findAll().stream()
+                .filter(aluno -> aluno.calcularRisco() >= 0.5)  // lambda aqui
+                .collect(Collectors.toList());
+    }
 }
+
