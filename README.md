@@ -59,6 +59,21 @@ A API estará disponível em `http://localhost:8080`.
 
 ---
 
+## Concorrencia e desempenho
+
+O calculo de alunos em risco usa um `ExecutorService` com pool fixo configurado pelo Spring. A busca no banco continua sincronizada com Spring Data JPA; depois que os alunos e seus historicos sao carregados na transacao, o calculo de risco de cada aluno e distribuido entre threads do pool.
+
+Essa escolha evita paralelizar acesso ao `EntityManager`, que nao e seguro para uso concorrente, e aplica concorrencia apenas no processamento em memoria. O codigo tambem usa lambdas para submeter tarefas, filtrar resultados e manter a validacao de campos organizada.
+
+Boas praticas aplicadas:
+
+- pool controlado como bean Spring, com shutdown automatico;
+- restauracao da interrupcao da thread em caso de `InterruptedException`;
+- separacao entre acesso ao banco e processamento paralelo;
+- uso de streams e lambdas onde melhoram clareza sem alterar a regra de negocio.
+
+---
+
 ## Estrutura do projeto
 
 ```

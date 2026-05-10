@@ -7,14 +7,24 @@ import com.rollback.api_alunos.model.enums.StatusAluno;
 import com.rollback.api_alunos.repository.AlunoRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class AlunoService {
 
     private final AlunoRepository alunoRepository;
+    private final ExecutorService riskAnalysisExecutor;
 
     public List<Aluno> listarTodos() {
         return alunoRepository.findAll();
@@ -51,11 +61,49 @@ public class AlunoService {
         alunoRepository.deleteById(id);
     }
  
-    // retorna alunos com risco >= 0.5 usando lambda no filter
+    // retorna alunos com risco >= 0.5 usando ExecutorService e lambdas
+    @Transactional(readOnly = true)
     public List<Aluno> listarAlunosEmRisco() {
-        return alunoRepository.findAll().stream()
-                .filter(aluno -> aluno.calcularRisco() >= 0.5)  // lambda aqui
+        List<Aluno> alunos = alunoRepository.findAll();
+        alunos.forEach(this::inicializarHistoricoAcademico);
+
+        List<Callable<AlunoRiscoResultado>> tarefas = alunos.stream()
+                .map(aluno -> (Callable<AlunoRiscoResultado>) () ->
+                        new AlunoRiscoResultado(aluno, aluno.calcularRisco()))
                 .collect(Collectors.toList());
+
+        return executarAnalise(tarefas).stream()
+                .map(this::obterResultado)
+                .filter(resultado -> resultado.risco() >= 0.5)
+                .map(AlunoRiscoResultado::aluno)
+                .collect(Collectors.toList());
+    }
+
+    private void inicializarHistoricoAcademico(Aluno aluno) {
+        aluno.getMatriculas().forEach(matricula -> matricula.getDisciplinas().size());
+    }
+
+    private List<Future<AlunoRiscoResultado>> executarAnalise(List<Callable<AlunoRiscoResultado>> tarefas) {
+        try {
+            return riskAnalysisExecutor.invokeAll(tarefas);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Analise de risco interrompida.", e);
+        }
+    }
+
+    private AlunoRiscoResultado obterResultado(Future<AlunoRiscoResultado> tarefa) {
+        try {
+            return tarefa.get();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Analise de risco interrompida.", e);
+        } catch (ExecutionException e) {
+            throw new IllegalStateException("Falha ao calcular risco do aluno.", e);
+        }
+    }
+
+    private record AlunoRiscoResultado(Aluno aluno, double risco) {
     }
 }
 
